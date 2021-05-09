@@ -73,6 +73,47 @@ lazy_static! {
         OpCode::new(0x01, "ORA", 2, 6, AddressingMode::Indirect_X),
         OpCode::new(0x11, "ORA", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y),
 
+        /* SHIFTS */
+        OpCode::new(0x0a, "ASL", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x06, "ASL", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x16, "ASL", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0x0e, "ASL", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x1e, "ASL", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0x4a, "LSR", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x46, "LSR", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x56, "LSR", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0x4e, "LSR", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x5e, "LSR", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0x2a, "ROL", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x26, "ROL", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x36, "ROL", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0x2e, "ROL", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x3e, "ROL", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0x6a, "ROR", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x66, "ROR", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x76, "ROR", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0x6e, "ROR", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x7e, "ROR", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0xe6, "INC", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0xf6, "INC", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0xee, "INC", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0xfe, "INC", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0xe8, "INX", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0xc8, "INY", 1, 2, AddressingMode::NoneAddressing),
+
+        OpCode::new(0xc6, "DEC", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0xd6, "DEC", 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new(0xce, "DEC", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0xde, "DEC", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0xca, "DEX", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
+
         /* STORES & LOADS */
         OpCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
         OpCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),
