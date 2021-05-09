@@ -1,3 +1,6 @@
+use crate::opcodes::{OpCode, OPCODES_MAP};
+use std::collections::HashMap;
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
@@ -62,7 +65,7 @@ impl CPU {
         }
     }
 
-    fn get_operand_address(&self, mode: AddressingMode) -> u16 {
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
             AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
@@ -117,7 +120,7 @@ impl CPU {
         }
     }
 
-    fn lda(&mut self, mode: AddressingMode) {
+    fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
@@ -125,7 +128,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn sta(&mut self, mode: AddressingMode) {
+    fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
     }
@@ -146,40 +149,34 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        loop {
-            let opscode = self.mem_read(self.program_counter);
-            self.program_counter += 1;
+        let ref opcodes: HashMap<u8, &'static OpCode> = *OPCODES_MAP;
 
-            match opscode {
+        loop {
+            let code = self.mem_read(self.program_counter);
+            self.program_counter += 1;
+            let programe_counter_state = self.program_counter;
+
+            let opcode = opcodes
+                .get(&code)
+                .expect(&format!("OpCode {:?} is not recognised!", code));
+
+            match code {
                 // LDA
-                0xa9 => {
-                    self.lda(AddressingMode::Immediate);
-                    self.program_counter += 1;
-                }
-                0xa5 => {
-                    self.lda(AddressingMode::ZeroPage);
-                    self.program_counter += 1;
-                }
-                0xad => {
-                    self.lda(AddressingMode::Absolute);
-                    self.program_counter += 2;
+                0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
+                    self.lda(&opcode.mode);
                 }
                 // STA
-                0x85 => {
-                    self.sta(AddressingMode::ZeroPage);
-                    self.program_counter += 1;
+                0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
+                    self.sta(&opcode.mode);
                 }
-                0x95 => {
-                    self.sta(AddressingMode::ZeroPage_X);
-                    self.program_counter += 1;
-                }
-                // TAX
-                0xaa => self.tax(),
-                // INX
+                0xAA => self.tax(),
                 0xe8 => self.inx(),
-                // BRK
                 0x00 => return,
                 _ => todo!(),
+            }
+
+            if programe_counter_state == self.program_counter {
+                self.program_counter += (opcode.len - 1) as u16;
             }
         }
     }
