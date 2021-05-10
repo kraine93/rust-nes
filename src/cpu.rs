@@ -462,6 +462,66 @@ impl CPU {
         self.update_zero_and_negative_flags(compare_value.wrapping_sub(data));
     }
 
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read(addr);
+
+        if self.register_a & data == 0 {
+            self.status.insert(CpuFlags::ZERO);
+        } else {
+            self.status.remove(CpuFlags::ZERO);
+        }
+
+        self.status.set(CpuFlags::NEGATIVE, data & 0b1000_0000 > 0);
+        self.status.set(CpuFlags::OVERFLOW, data & 0b0100_0000 > 0);
+    }
+
+    fn jmp(&mut self) {
+        let mem_addr = self.mem_read_u16(self.program_counter);
+        self.program_counter = mem_addr;
+    }
+
+    fn jmp_indirect(&mut self) {
+        let mem_addr = self.mem_read_u16(self.program_counter);
+
+        //6502 bug mode with page boundary
+        let indirect_ref = if mem_addr & 0x00FF == 0x00FF {
+            let lo = self.mem_read(mem_addr);
+            let hi = self.mem_read(mem_addr & 0xFF00);
+            u16::from_le_bytes([hi, lo])
+        } else {
+            self.mem_read_u16(mem_addr)
+        };
+
+        self.program_counter = indirect_ref;
+    }
+
+    fn jsr(&mut self) {
+        self.stack_push_u16(self.program_counter + 2 - 1); // Push the return point to the stack
+        let mem_addr = self.mem_read_u16(self.program_counter);
+        self.program_counter = mem_addr;
+    }
+
+    fn rti(&mut self) {
+        self.status.bits = self.stack_pop();
+        self.status.remove(CpuFlags::BREAK);
+        self.status.insert(CpuFlags::BREAK2);
+
+        self.program_counter = self.stack_pop_u16();
+    }
+
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let jump = self.mem_read(self.program_counter);
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+
+            self.program_counter = jump_addr;
+        }
+    }
+
     pub fn load(&mut self, program: Vec<u8>) {
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
         self.mem_write_u16(0xFFFC, 0x8000);
@@ -496,6 +556,23 @@ impl CPU {
                 }
                 0xc0 | 0xc4 | 0xcc => self.compare(&opcode.mode, self.register_x),
                 0xe0 | 0xe4 | 0xec => self.compare(&opcode.mode, self.register_y),
+                //BIT
+                0x24 | 0x2c => self.bit(&opcode.mode),
+                // JMP
+                0x4c => self.jmp(),
+                0x6c => self.jmp_indirect(),
+                0x20 => self.jsr(),
+                0x60 => self.program_counter = self.stack_pop_u16() + 1,
+                0x40 => self.rti(),
+                // BRANCH
+                0xf0 => self.branch(self.status.contains(CpuFlags::ZERO)),
+                0xd0 => self.branch(!self.status.contains(CpuFlags::ZERO)),
+                0x70 => self.branch(self.status.contains(CpuFlags::OVERFLOW)),
+                0x50 => self.branch(!self.status.contains(CpuFlags::OVERFLOW)),
+                0x30 => self.branch(self.status.contains(CpuFlags::NEGATIVE)),
+                0x10 => self.branch(!self.status.contains(CpuFlags::NEGATIVE)),
+                0xb0 => self.branch(self.status.contains(CpuFlags::CARRY)),
+                0x90 => self.branch(!self.status.contains(CpuFlags::CARRY)),
                 // LDA
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => self.lda(&opcode.mode),
                 // LDX
