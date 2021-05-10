@@ -92,44 +92,57 @@ impl CPU {
         }
     }
 
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+    pub fn get_absolute_address(&self, mode: &AddressingMode, addr: u16) -> u16 {
         match mode {
-            AddressingMode::Immediate => self.program_counter,
-            AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
-            AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
+            AddressingMode::ZeroPage => self.mem_read(addr) as u16,
+            AddressingMode::Absolute => self.mem_read_u16(addr),
             AddressingMode::ZeroPage_X => {
-                let pos = self.mem_read(self.program_counter);
-                pos.wrapping_add(self.register_x) as u16
+                let pos = self.mem_read(addr);
+                let addr = pos.wrapping_add(self.register_x) as u16;
+                addr
             }
             AddressingMode::ZeroPage_Y => {
-                let pos = self.mem_read(self.program_counter);
-                pos.wrapping_add(self.register_y) as u16
+                let pos = self.mem_read(addr);
+                let addr = pos.wrapping_add(self.register_y) as u16;
+                addr
             }
             AddressingMode::Absolute_X => {
-                let base = self.mem_read_u16(self.program_counter);
-                base.wrapping_add(self.register_x as u16)
+                let base = self.mem_read_u16(addr);
+                let addr = base.wrapping_add(self.register_x as u16);
+                addr
             }
             AddressingMode::Absolute_Y => {
-                let base = self.mem_read_u16(self.program_counter);
-                base.wrapping_add(self.register_y as u16)
+                let base = self.mem_read_u16(addr);
+                let addr = base.wrapping_add(self.register_y as u16);
+                addr
             }
             AddressingMode::Indirect_X => {
-                let base = self.mem_read(self.program_counter);
-                let ptr: u8 = base.wrapping_add(self.register_x);
+                let base = self.mem_read(addr);
+
+                let ptr: u8 = (base as u8).wrapping_add(self.register_x);
                 let lo = self.mem_read(ptr as u16);
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
                 (hi as u16) << 8 | (lo as u16)
             }
             AddressingMode::Indirect_Y => {
-                let base = self.mem_read(self.program_counter);
+                let base = self.mem_read(addr);
+
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read(base.wrapping_add(1) as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
-                deref_base.wrapping_add(self.register_y as u16)
+                let deref = deref_base.wrapping_add(self.register_y as u16);
+                deref
             }
-            AddressingMode::NoneAddressing => {
+            _ => {
                 panic!("mode {:?} is not supported", mode);
             }
+        }
+    }
+
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.program_counter,
+            _ => self.get_absolute_address(mode, self.program_counter),
         }
     }
 
@@ -227,13 +240,13 @@ impl CPU {
     fn stack_pop_u16(&mut self) -> u16 {
         let lo = self.stack_pop();
         let hi = self.stack_pop();
-        u16::from_le_bytes([hi, lo])
+        u16::from_le_bytes([lo, hi])
     }
 
     fn stack_push_u16(&mut self, data: u16) {
         let bytes = u16::to_le_bytes(data);
-        self.stack_push(bytes[0]);
         self.stack_push(bytes[1]);
+        self.stack_push(bytes[0]);
     }
 
     fn php(&mut self) {
@@ -503,7 +516,7 @@ impl CPU {
         let indirect_ref = if mem_addr & 0x00FF == 0x00FF {
             let lo = self.mem_read(mem_addr);
             let hi = self.mem_read(mem_addr & 0xFF00);
-            u16::from_le_bytes([hi, lo])
+            u16::from_le_bytes([lo, hi])
         } else {
             self.mem_read_u16(mem_addr)
         };
@@ -539,9 +552,9 @@ impl CPU {
 
     pub fn load(&mut self, program: Vec<u8>) {
         for i in 0..(program.len() as u16) {
-            self.mem_write(0x8600 + i, program[i as usize]);
+            self.mem_write(0x0600 + i, program[i as usize]);
         }
-        self.mem_write_u16(0xFFFC, 0x8600);
+        //self.mem_write_u16(0xFFFC, 0x8600);
     }
 
     pub fn run(&mut self) {
@@ -555,6 +568,8 @@ impl CPU {
         let ref opcodes: HashMap<u8, &'static OpCode> = *OPCODES_MAP;
 
         loop {
+            callback(self);
+
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let programe_counter_state = self.program_counter;
@@ -660,8 +675,6 @@ impl CPU {
             if programe_counter_state == self.program_counter {
                 self.program_counter += (opcode.len - 1) as u16;
             }
-
-            callback(self);
         }
     }
 
@@ -678,6 +691,7 @@ impl CPU {
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         self.load(program);
         self.reset();
+        self.program_counter = 0x0600;
         self.run();
     }
 }
@@ -714,9 +728,8 @@ mod test {
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = CPU::new(Bus::new(test::test_rom()));
-        cpu.register_a = 10;
-        cpu.load_and_run(vec![0xaa, 0x00]);
-        assert_eq!(cpu.register_x, 10);
+        cpu.load_and_run(vec![0xa9, 0x0a, 0xaa, 0x00]);
+        assert_eq!(cpu.register_x, 10)
     }
 
     #[test]
