@@ -4,9 +4,11 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 
+pub mod bus;
 pub mod cpu;
 pub mod opcodes;
 
+use crate::bus::Bus;
 use crate::cpu::{Mem, CPU};
 use rand::Rng;
 use sdl2::event::Event;
@@ -120,9 +122,11 @@ fn main() {
         0x60, 0xa6, 0xff, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ];
 
-    let mut cpu = CPU::new();
+    let bus = Bus::new();
+    let mut cpu = CPU::new(bus);
     cpu.load(game_code);
     cpu.reset();
+    cpu.program_counter = 0x0600;
 
     let mut screen_state = [0 as u8; 32 * 32 * 3];
     let mut rng = rand::thread_rng();
