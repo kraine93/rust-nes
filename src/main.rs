@@ -137,6 +137,6 @@ fn main() {
             canvas.present();
         }
 
-        std::thread::sleep(std::time::Duration::new(0, 10_000));
+        spin_sleep::sleep(std::time::Duration::new(0, 75_000));
     });
 }
