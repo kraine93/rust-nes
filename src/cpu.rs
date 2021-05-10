@@ -42,7 +42,7 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
-trait Mem {
+pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
     fn mem_write(&mut self, addr: u16, data: u8);
@@ -131,10 +131,14 @@ impl CPU {
             self.status.remove(CpuFlags::ZERO);
         }
 
-        if result & 0b1000_0000 != 0 {
-            self.status.insert(CpuFlags::NEGATIVE);
+        self.update_negative_flag(result);
+    }
+
+    fn update_negative_flag(&mut self, result: u8) {
+        if result >> 7 == 1 {
+            self.status.insert(CpuFlags::NEGATIVE)
         } else {
-            self.status.remove(CpuFlags::NEGATIVE);
+            self.status.remove(CpuFlags::NEGATIVE)
         }
     }
 
@@ -155,7 +159,7 @@ impl CPU {
         let value = self.mem_read(addr);
 
         self.register_x = value;
-        self.update_zero_and_negative_flags(self.register_a);
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn ldy(&mut self, mode: &AddressingMode) {
@@ -163,7 +167,7 @@ impl CPU {
         let value = self.mem_read(addr);
 
         self.register_y = value;
-        self.update_zero_and_negative_flags(self.register_a);
+        self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -188,6 +192,7 @@ impl CPU {
 
     fn txa(&mut self) {
         self.set_register_a(self.register_x);
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn tay(&mut self) {
@@ -197,6 +202,7 @@ impl CPU {
 
     fn tya(&mut self) {
         self.set_register_a(self.register_y);
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn stack_pop(&mut self) -> u8 {
@@ -206,7 +212,7 @@ impl CPU {
 
     fn stack_push(&mut self, value: u8) {
         self.mem_write(STACK + self.stack_pointer as u16, value);
-        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
@@ -235,7 +241,7 @@ impl CPU {
     }
 
     fn add_to_register_a(&mut self, value: u8) {
-        let sum = (self.register_a as u16)
+        let sum = self.register_a as u16
             + value as u16
             + (if self.status.contains(CpuFlags::CARRY) {
                 1
@@ -250,7 +256,7 @@ impl CPU {
         }
 
         let result = sum as u8;
-        if (value ^ result) & (value ^ self.register_a) & 0x80 != 0 {
+        if (value ^ result) & (result ^ self.register_a) & 0x80 != 0 {
             self.status.insert(CpuFlags::OVERFLOW);
         } else {
             self.status.remove(CpuFlags::OVERFLOW);
@@ -374,7 +380,7 @@ impl CPU {
             data = data | 1;
         }
         self.mem_write(addr, data);
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flag(data);
     }
 
     fn ror_acc(&mut self) {
@@ -410,7 +416,7 @@ impl CPU {
             data = data | 0b1000_0000;
         }
         self.mem_write(addr, data);
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flag(data);
     }
 
     fn inc(&mut self, mode: &AddressingMode) {
@@ -512,7 +518,7 @@ impl CPU {
 
     fn branch(&mut self, condition: bool) {
         if condition {
-            let jump = self.mem_read(self.program_counter);
+            let jump = self.mem_read(self.program_counter) as i8;
             let jump_addr = self
                 .program_counter
                 .wrapping_add(1)
@@ -523,11 +529,18 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         let ref opcodes: HashMap<u8, &'static OpCode> = *OPCODES_MAP;
 
         loop {
@@ -554,8 +567,8 @@ impl CPU {
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
                     self.compare(&opcode.mode, self.register_a)
                 }
-                0xc0 | 0xc4 | 0xcc => self.compare(&opcode.mode, self.register_x),
-                0xe0 | 0xe4 | 0xec => self.compare(&opcode.mode, self.register_y),
+                0xc0 | 0xc4 | 0xcc => self.compare(&opcode.mode, self.register_y),
+                0xe0 | 0xe4 | 0xec => self.compare(&opcode.mode, self.register_x),
                 //BIT
                 0x24 | 0x2c => self.bit(&opcode.mode),
                 // JMP
@@ -636,6 +649,8 @@ impl CPU {
             if programe_counter_state == self.program_counter {
                 self.program_counter += (opcode.len - 1) as u16;
             }
+
+            callback(self);
         }
     }
 
