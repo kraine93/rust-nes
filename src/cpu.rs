@@ -18,14 +18,14 @@ bitflags! {
 const STACK: u16 = 0x0100;
 const STACK_RESET: u8 = 0xfd;
 
-pub struct CPU {
+pub struct CPU<'a> {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub status: CpuFlags,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    pub bus: Bus,
+    pub bus: Bus<'a>,
 }
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ pub trait Mem {
     }
 }
 
-impl Mem for CPU {
+impl<'a> Mem for CPU<'a> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
@@ -105,8 +105,8 @@ fn page_cross(addr1: u16, addr2: u16) -> bool {
     addr1 & 0xFF00 != addr2 & 0xFF00
 }
 
-impl CPU {
-    pub fn new(bus: Bus) -> Self {
+impl<'a> CPU<'a> {
+    pub fn new<'b>(bus: Bus<'b>) -> CPU<'b> {
         CPU {
             register_a: 0,
             register_x: 0,
@@ -1015,11 +1015,12 @@ impl CPU {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ppu::NesPPU;
     use crate::rom::test;
 
     #[test]
     fn test_0xa9_lda_load_data() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
@@ -1028,14 +1029,14 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
     }
 
     #[test]
     fn test_lda_from_memory() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.mem_write(0x10, 0x55);
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
         assert_eq!(cpu.register_a, 0x55);
@@ -1043,21 +1044,21 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.load_and_run(vec![0xa9, 0x0a, 0xaa, 0x00]);
         assert_eq!(cpu.register_x, 10)
     }
 
     #[test]
     fn test_5_ops_working_together() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
         assert_eq!(cpu.register_x, 0xc1);
     }
 
     #[test]
     fn test_inx_overflow() {
-        let mut cpu = CPU::new(Bus::new(test::test_rom()));
+        let mut cpu = CPU::new(Bus::new(test::test_rom(), |ppu: &NesPPU| {}));
         cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
         assert_eq!(cpu.register_x, 0x01);
     }

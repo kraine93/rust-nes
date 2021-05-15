@@ -9,10 +9,7 @@ use crate::rom::Mirroring;
 
 pub struct NesPPU {
     pub chr_rom: Vec<u8>,
-    pub palette_table: [u8; 32],
     pub vram: [u8; 2048],
-    pub oam_addr: u8,
-    pub oam_data: [u8; 256],
     pub mirroring: Mirroring,
     pub addr: AddrRegister,
     pub ctrl: CtrlRegister,
@@ -20,9 +17,13 @@ pub struct NesPPU {
     pub scroll: ScrollRegister,
     pub status: StatusRegister,
 
+    pub oam_addr: u8,
+    pub oam_data: [u8; 256],
+    pub palette_table: [u8; 32],
+
     internal_data_buf: u8,
 
-    scanline: u16,
+    pub scanline: u16,
     cycles: usize,
     pub nmi_interrupt: Option<u8>,
 }
@@ -87,7 +88,7 @@ impl NesPPU {
 
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
-        if self.cycles > 341 {
+        if self.cycles >= 341 {
             self.cycles = self.cycles - 341;
             self.scanline += 1;
 

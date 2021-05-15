@@ -14,7 +14,7 @@ impl ScrollRegister {
     }
 
     pub fn write(&mut self, data: u8) {
-        if self.latch {
+        if !self.latch {
             self.scroll_x = data;
         } else {
             self.scroll_y = data;
