@@ -27,9 +27,6 @@ fn main() {
     cpu.reset();
     cpu.program_counter = 0xc000;
 
-    let mut screen_state = [0 as u8; 32 * 32 * 3];
-    let mut rng = rand::thread_rng();
-
     cpu.run_with_callback(move |cpu| {
         println!("{}", trace(cpu));
     });
