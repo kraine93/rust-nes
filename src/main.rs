@@ -1,5 +1,6 @@
 pub mod bus;
 pub mod cpu;
+pub mod joypad;
 pub mod opcodes;
 pub mod ppu;
 pub mod render;
@@ -8,10 +9,12 @@ pub mod trace;
 
 use crate::bus::Bus;
 use crate::cpu::CPU;
+use crate::joypad::Joypad;
 use crate::ppu::NesPPU;
 use cpu::Mem;
 use render::frame::Frame;
 use rom::Rom;
+use std::collections::HashMap;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -48,8 +51,18 @@ fn main() {
 
     let mut frame = Frame::new();
 
+    let mut key_map = HashMap::new();
+    key_map.insert(Keycode::Down, joypad::JoypadButton::DOWN);
+    key_map.insert(Keycode::Up, joypad::JoypadButton::UP);
+    key_map.insert(Keycode::Right, joypad::JoypadButton::RIGHT);
+    key_map.insert(Keycode::Left, joypad::JoypadButton::LEFT);
+    key_map.insert(Keycode::Space, joypad::JoypadButton::SELECT);
+    key_map.insert(Keycode::Return, joypad::JoypadButton::START);
+    key_map.insert(Keycode::A, joypad::JoypadButton::BUTTON_A);
+    key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
+
     // the game cycle
-    let bus = Bus::new(rom, move |ppu: &NesPPU| {
+    let bus = Bus::new(rom, move |ppu: &NesPPU, joypad: &mut Joypad| {
         render::render(ppu, &mut frame);
         texture.update(None, &frame.data, 256 * 3).unwrap();
 
@@ -63,6 +76,16 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => std::process::exit(0),
+                Event::KeyDown { keycode, .. } => {
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(*key, true);
+                    }
+                }
+                Event::KeyUp { keycode, .. } => {
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(*key, false);
+                    }
+                }
                 _ => { /* do nothing */ }
             }
         }
